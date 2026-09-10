@@ -184,6 +184,7 @@ func newRootCmd() *cobra.Command {
 	root.AddCommand(newLoginCommand())
 	root.AddCommand(newLogoutCommand())
 	root.AddCommand(newAccountsCommand().cmd)
+	root.AddCommand(newSendersCommand())
 	root.AddCommand(newBoxCommand().cmd)
 	root.AddCommand(newBundleCommand().cmd)
 	root.AddCommand(newLabelCommand().cmd)

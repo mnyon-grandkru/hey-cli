@@ -67,11 +67,22 @@ hey box view imbox                      # threads in a box
 hey thread read 12345                   # a whole thread, as Markdown
 hey reply 12345 -m "Friday works for me."
 hey compose --to alice@example.com --subject "Lunch?" -m "Thursday at noon?"
+hey senders list                        # From identities (Connect-an-Address)
+hey compose --from mark@grandkru.com --to alice@example.com --subject "Hello" -m "From my alias."
 hey search --from jane@example.com --date last_30_days
 hey screener list                       # first-time senders waiting on you
 hey event add "Design review" --starts-on 2026-09-02 --start-time 14:00
 hey watch --box imbox --events new      # a line of JSON for every new email, as it lands
 ```
+
+### Connect-an-Address
+
+If you send from a connected address (Connect-an-Address in HEY), list the From
+identities HEY accepts with `hey senders list`, then pass one to `hey compose
+--from <email>` or `hey reply <thread-id> --from <email>`. These are identity
+senders from `GET /identity.json`, not the linked mail accounts `hey account
+list` shows — a connected domain address can appear here even when the account
+list names only your primary `@hey.com` mailbox.
 
 Every command explains itself with `--help`. At a terminal the output is made for reading.
 Piped, a command that returns data writes JSON, and `--jq` filters it without a separate

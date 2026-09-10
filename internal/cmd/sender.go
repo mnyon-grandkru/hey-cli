@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/basecamp/hey-sdk/go/pkg/generated"
+	hey "github.com/basecamp/hey-sdk/go/pkg/hey"
 
 	"github.com/basecamp/hey-cli/internal/apierr"
 	"github.com/basecamp/hey-cli/internal/output"
@@ -44,6 +45,28 @@ func resolveSenderID(ctx context.Context, email string) (int64, error) {
 		"no sender matching %q (available: %s)",
 		email, strings.Join(available, ", "),
 	))
+}
+
+// createMessageAsSender delivers a new message as actingSenderID. Zero uses the
+// account default via Messages().Create; a non-zero id is the Connect-an-Address
+// / identity sender resolved from --from.
+func createMessageAsSender(ctx context.Context, actingSenderID int64, subject, content string, to, cc, bcc []string) error {
+	if actingSenderID == 0 {
+		return apierr.FromSDK(sdk.Messages().Create(ctx, subject, content, to, cc, bcc))
+	}
+	draft := hey.DraftContent{
+		Subject:        subject,
+		Content:        content,
+		To:             to,
+		CC:             cc,
+		BCC:            bcc,
+		ActingSenderID: actingSenderID,
+	}
+	entryID, err := sdk.Messages().CreateDraft(ctx, draft)
+	if err != nil {
+		return apierr.FromSDK(err)
+	}
+	return apierr.FromSDK(sdk.Messages().SendDraft(ctx, entryID, draft))
 }
 
 func senderEmails(senders []generated.Sender) []string {

@@ -46,34 +46,6 @@ func resolveSenderID(ctx context.Context, email string) (int64, error) {
 	))
 }
 
-// createMessageAsSender delivers a new message. Zero actingSenderID uses
-// Messages().Create; a non-zero id posts /messages.json with acting_sender_id,
-// the Connect-an-Address / identity sender resolved from --from.
-func createMessageAsSender(ctx context.Context, actingSenderID int64, subject, content string, to, cc, bcc []string) error {
-	if len(to)+len(cc)+len(bcc) == 0 {
-		return apierr.ErrUsage("a message needs at least one recipient (to, cc or bcc)")
-	}
-	if actingSenderID == 0 {
-		return apierr.FromSDK(sdk.Messages().Create(ctx, subject, content, to, cc, bcc))
-	}
-	body := generated.CreateMessageRequestContent{
-		ActingSenderId: actingSenderID,
-		Message:        generated.MessagePayload{Subject: subject, Content: content},
-		Entry:          messageEntryPayload(to, cc, bcc),
-	}
-	_, err := sdk.PostMutation(ctx, "/messages.json", body)
-	return apierr.FromSDK(err)
-}
-
-func messageEntryPayload(to, cc, bcc []string) *generated.MessageEntryPayload {
-	if len(to)+len(cc)+len(bcc) == 0 {
-		return nil
-	}
-	return &generated.MessageEntryPayload{
-		Addressed: &generated.MessageAddressed{Directly: to, Copied: cc, Blindcopied: bcc},
-	}
-}
-
 func senderEmails(senders []generated.Sender) []string {
 	seen := map[string]struct{}{}
 	var available []string

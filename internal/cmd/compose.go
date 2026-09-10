@@ -27,8 +27,8 @@ type composeCommand struct {
 	threadID    string
 	attachments []string
 	draft       bool
-	noNameTag   bool
 	from        string
+	noNameTag   bool
 }
 
 func newComposeCommand() *composeCommand {
@@ -37,17 +37,18 @@ func newComposeCommand() *composeCommand {
 		Use:   "compose",
 		Short: "Write and send a new email",
 		Annotations: map[string]string{
-			"agent_notes": "Starts a new thread with --to (optionally --cc/--bcc), which requires --subject, or replies to an existing one with --thread-id, which does not. Repeatable --attach files are uploaded before sending and can be sent without body text. The body is Markdown; use --message-html to send raw HTML instead. --from <email> overrides the sender with a Connect-an-Address / identity sender (hey senders list). --draft saves instead of sending — recipients become optional — and answers the draft ID for hey draft show/edit/send/delete. A new message ends with the sender's HEY name tag, as one composed in HEY does; --no-name-tag leaves it out.",
+			"agent_notes": "Starts a new thread with --to (optionally --cc/--bcc), which requires --subject, or replies to an existing one with --thread-id, which does not. Repeatable --attach files are uploaded before sending and can be sent without body text. The body is Markdown; use --message-html to send raw HTML instead. --from <email> sends as a HEY Connect-an-Address / identity sender (see hey senders list). --draft saves instead of sending — recipients become optional — and answers the draft ID for hey draft show/edit/send/delete. A new message ends with the sender's HEY name tag, as one composed in HEY does; --no-name-tag leaves it out.",
 		},
 		Example: `  hey compose --to alice@example.com --subject "Lunch plans" -m "Are you free Friday?"
-  hey compose --from mark@grandkru.com --to alice@example.com --subject "From the alias" -m "Hello from Connect-an-Address."
   hey compose --to alice@example.com --cc bob@example.com --bcc carol@example.org --subject "Kitchen remodel timeline" -m "Cabinets land the week of the 14th."
   hey compose --to alice@example.com --subject "Q3 revenue report" -m "The numbers are attached." --attach ./report.pdf
   hey compose --thread-id 12345 -m "Confirmed — see you then." --attach ./diagram.png
   hey compose --to alice@example.com --subject "Sprint recap" -m "We **shipped** the pagination fix."
   hey compose --to alice@example.com --subject "Newsletter draft" --message-html "<h1>March</h1><p>What we shipped.</p>"
   echo "Notes from the offsite" | hey compose --to bob@example.com --subject "Offsite recap"
-  hey compose --subject "Board update" -m "Numbers to follow." --draft  # save a draft; add recipients later`,
+  hey compose --subject "Board update" -m "Numbers to follow." --draft  # save a draft; add recipients later
+  hey compose --from mark@grandkru.com --to alice@example.com --subject "Capital District" -m "Hello from Grand Kru."
+  hey compose --from me@mnyon.com --to alice@example.com --subject "Draft" -m "Review me." --draft`,
 		RunE: composeCommand.run,
 	}
 
@@ -60,8 +61,8 @@ func newComposeCommand() *composeCommand {
 	composeCommand.cmd.Flags().StringVar(&composeCommand.threadID, "thread-id", "", "Reply to this thread instead of starting a new one")
 	composeCommand.cmd.Flags().StringArrayVar(&composeCommand.attachments, "attach", nil, "File to attach (repeatable)")
 	composeCommand.cmd.Flags().BoolVar(&composeCommand.draft, "draft", false, "Save as a draft instead of sending")
-	composeCommand.cmd.Flags().BoolVar(&composeCommand.noNameTag, "no-name-tag", false, "Leave the sender's HEY name tag off a new message")
 	composeCommand.cmd.Flags().StringVar(&composeCommand.from, "from", "", "Send as this identity sender email (Connect-an-Address / hey senders list)")
+	composeCommand.cmd.Flags().BoolVar(&composeCommand.noNameTag, "no-name-tag", false, "Leave the sender's HEY name tag off a new message")
 	composeCommand.cmd.MarkFlagsMutuallyExclusive("message", "message-html")
 
 	return composeCommand
@@ -170,12 +171,45 @@ func (c *composeCommand) run(cmd *cobra.Command, args []string) error {
 			}
 			return writeDraftSaved(cmd, draftID, len(c.attachments))
 		}
-		if err := createMessageAsSender(ctx, actingSenderID, c.subject, messageWithAttachments, to, cc, bcc); err != nil {
-			return err
+		if actingSenderID != 0 {
+			if err := createMessageAsSender(ctx, actingSenderID, c.subject, messageWithAttachments, to, cc, bcc); err != nil {
+				return err
+			}
+		} else if err := sdk.Messages().Create(ctx, c.subject, messageWithAttachments, to, cc, bcc); err != nil {
+			return apierr.FromSDK(err)
 		}
 	}
 
 	return writeMutation(cmd, sentWithAttachmentsSummary("Message sent", len(c.attachments)), nil)
+}
+
+// createMessageAsSender posts /messages.json with an explicit acting_sender_id.
+// Messages().Create always uses the account default sender, so --from needs this path.
+func createMessageAsSender(ctx context.Context, actingSenderID int64, subject, content string, to, cc, bcc []string) error {
+	addressed := map[string]any{}
+	if len(to) > 0 {
+		addressed["directly"] = to
+	}
+	if len(cc) > 0 {
+		addressed["copied"] = cc
+	}
+	if len(bcc) > 0 {
+		addressed["blindcopied"] = bcc
+	}
+	body := map[string]any{
+		"acting_sender_id": actingSenderID,
+		"message": map[string]any{
+			"subject": subject,
+			"content": content,
+		},
+		"entry": map[string]any{
+			"addressed": addressed,
+		},
+	}
+	if _, err := sdk.PostMutation(ctx, "/messages.json", body); err != nil {
+		return apierr.FromSDK(err)
+	}
+	return nil
 }
 
 // appendSenderNameTag ends a new message — attachments included — with the sender's name
@@ -183,7 +217,7 @@ func (c *composeCommand) run(cmd *cobra.Command, args []string) error {
 // saves, so a message written here has to carry its own — otherwise a draft or a send from
 // the CLI goes out unsigned while the same message written in HEY would not. The tag is the
 // one HEY serves for the sender the message is filed under; a sender without one leaves the
-// message alone.
+// message alone. preferSenderID is used when --from selected an identity sender.
 func appendSenderNameTag(ctx context.Context, message string, preferSenderID int64) (string, error) {
 	senderID := preferSenderID
 	if senderID == 0 {

@@ -222,21 +222,19 @@ hey unshare 123                    # turn off the sharing link
 hey attachment list 123                # list files attached to the thread
 hey attachment save 456:1         # save a file using its attachment ID
 hey reply 123 -m "Friday works for me — I'll send an agenda."  # or omit -m for $EDITOR
-hey reply 123 --from mark@grandkru.com -m "Replying from my connected address."
 hey reply 123 -m "Here is the wiring diagram." --attach ./diagram.png
 hey bulk-reply preview 12345 67890  # inspect threads and exact To/CC/BCC recipients
 hey bulk-reply send 12345 67890 -m "Thanks for the update."
 hey bulk-reply undo 98765            # recall a delayed bulk reply
 hey forward 123 --to alice@example.com -m "For your review"  # forward the latest message
-hey senders list                   # From identities (Connect-an-Address)
 hey compose --to alice@example.com --subject "Lunch plans"  # body from $EDITOR
-hey compose --from mark@grandkru.com --to alice@example.com --subject "From the alias" -m "Hello from Connect-an-Address."
 hey compose --to alice@example.com --subject "Q3 revenue report" -m "The numbers are attached." --attach ./report.pdf
 hey compose --to alice@example.com --cc bob@example.com --bcc carol@example.org --subject "Kitchen remodel timeline"  # with CC/BCC
 hey compose --to alice@example.com --subject "Sprint recap" -m "We **shipped** the pagination fix."
 hey compose --to alice@example.com --subject "Newsletter draft" --message-html "<h1>March</h1><p>What we shipped.</p>"
 hey compose --subject "Board update" -m "Numbers to follow." --draft  # save a draft instead of sending
 hey compose --to alice@example.com --subject "Sprint recap" -m "Shipped." --no-name-tag  # leave your HEY name tag off
+hey compose --from mark@grandkru.com --to alice@example.com --subject "Outreach" -m "Hello"  # Connect-an-Address From
 hey reply 123 -m "Drafting a longer answer." --draft  # save a reply draft
 hey draft list                     # list drafts (--all and --page follow HEY's cursor)
 hey draft show 12345               # read a draft back
@@ -277,9 +275,7 @@ The Screener is where first-time senders wait. `hey screener list` returns clear
 
 `hey bulk-reply preview` is read-only and resolves each posting to its latest replyable entry. `hey bulk-reply send` resolves the selection again, skips threads without a replyable entry, keeps HEY's server-provided name tag, and returns the exact reply count, delivery ID, delayed state, undo URL, and undo command. Posting IDs must be positive and unique. The message can come from `-m`, stdin, or `$EDITOR`; `--attach` is repeatable.
 
-A new message from `hey compose` — sent or saved with `--draft` — ends with the sender's HEY name tag, appended the way HEY's own compose form does; HEY puts the tag into the form rather than onto the saved message, so the CLI carries it itself. `--no-name-tag` leaves it off. With `--from`, the tag is the chosen identity sender's. A reply does not carry one yet.
-
-Connect-an-Address and other alternate From identities appear on `hey senders list` — the `senders[]` from `GET /identity.json`, not the linked mail accounts `hey account list` names. Pass one to `hey compose --from <email>` or `hey reply <thread-id> --from <email>` to set `acting_sender_id`; an unknown address is refused with the available senders listed.
+A new message from `hey compose` — sent or saved with `--draft` — ends with the sender's HEY name tag, appended the way HEY's own compose form does; HEY puts the tag into the form rather than onto the saved message, so the CLI carries it itself. `--no-name-tag` leaves it off. A reply does not carry one yet.
 
 `--attach` is repeatable on `hey compose`, `hey reply`, and `hey bulk-reply send`, and attachment-only messages are supported. The CLI validates and uploads every file before sending the email. `hey attachment list <thread-id>` returns every named downloadable file, including named inline images. Direct files keep stable message-and-position IDs such as `456:1`; files inside embedded HTML receive opaque IDs scoped to their message. Pass either returned ID to `hey attachment save`. Saving uses the original filename by default, accepts `--output` for a file or directory, and preserves existing files unless `--force` is set.
 

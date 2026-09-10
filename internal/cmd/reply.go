@@ -18,6 +18,7 @@ type replyCommand struct {
 	messageHTML string
 	attachments []string
 	draft       bool
+	from        string
 }
 
 func newReplyCommand() *replyCommand {
@@ -31,7 +32,7 @@ The reply is addressed the way HEY's own web app addresses one: everyone that en
 addressed to, with whoever wrote it on the To line. HEY saves an unaddressed reply as a
 draft rather than sending it, so the command fails when it cannot work the recipients out.`,
 		Annotations: map[string]string{
-			"agent_notes": "Replies to the latest entry in a thread, addressed the way HEY addresses a reply: everyone that entry was addressed to, plus its sender on the To line, minus the acting user's own addresses. Accepts message via -m, stdin, or $EDITOR, plus repeatable --attach files; an attachment can be sent without body text. The message is Markdown; use --message-html to send raw HTML instead. --draft saves the reply as a draft — carrying those recipients — and answers the draft ID for hey draft show/edit/send/delete.",
+			"agent_notes": "Replies to the latest entry in a thread, addressed the way HEY addresses a reply: everyone that entry was addressed to, plus its sender on the To line, minus the acting user's own addresses. Accepts message via -m, stdin, or $EDITOR, plus repeatable --attach files; an attachment can be sent without body text. The message is Markdown; use --message-html to send raw HTML instead. --from <email> overrides the reply sender with a Connect-an-Address / identity sender (hey senders list). --draft saves the reply as a draft — carrying those recipients — and answers the draft ID for hey draft show/edit/send/delete.",
 		},
 		Example: `  hey reply 12345 -m "Friday works for me — I'll send an agenda."
   hey reply 12345 -m "Attached is the report." --attach ./report.pdf
@@ -45,6 +46,7 @@ draft rather than sending it, so the command fails when it cannot work the recip
 	replyCommand.cmd.Flags().StringVar(&replyCommand.messageHTML, "message-html", "", "Reply message as raw HTML instead of Markdown")
 	replyCommand.cmd.Flags().StringArrayVar(&replyCommand.attachments, "attach", nil, "File to attach (repeatable)")
 	replyCommand.cmd.Flags().BoolVar(&replyCommand.draft, "draft", false, "Save as a draft instead of sending")
+	replyCommand.cmd.Flags().StringVar(&replyCommand.from, "from", "", "Send as this identity sender email (Connect-an-Address / hey senders list)")
 	replyCommand.cmd.MarkFlagsMutuallyExclusive("message", "message-html")
 
 	return replyCommand
@@ -65,6 +67,13 @@ func (c *replyCommand) run(cmd *cobra.Command, args []string) error {
 	target, err := resolveThreadReply(ctx, threadID)
 	if err != nil {
 		return err
+	}
+	if c.from != "" {
+		actingSenderID, resolveErr := resolveSenderID(ctx, c.from)
+		if resolveErr != nil {
+			return resolveErr
+		}
+		target.ActingSenderID = actingSenderID
 	}
 	replySDK := target.client
 

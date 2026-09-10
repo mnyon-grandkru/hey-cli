@@ -9,4 +9,4 @@
 ## Publish progress
 - [x] Fork created via GitHub connector (2026-09-10)
 - [x] Rebased `--from` onto fork `main` (kept upstream `--no-name-tag`)
-- [ ] Verified push on GitHub
+- [x] Verified push on GitHub
